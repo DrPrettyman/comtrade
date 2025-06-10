@@ -2,11 +2,10 @@ import pandas as pd
 import numpy as np
 import os
 import inspect
-from get_data import ComtradeData, iso2name_map
-
 from millify import millify
-
 import plotly.graph_objects as go
+
+from get_data import ComtradeData, iso2name_map
 
 
 def dir_path():
