@@ -1,11 +1,19 @@
 import pandas as pd
 import numpy as np
 import os
+import inspect
 from get_data import ComtradeData, iso2name_map
 
 from millify import millify
 
 import plotly.graph_objects as go
+
+
+def dir_path():
+    # Gets the directory where this function is called from
+    frame = inspect.currentframe()
+    filename = frame.f_code.co_filename
+    return os.path.dirname(os.path.abspath(filename))
 
 
 class ComtradeExportMap:
@@ -403,7 +411,8 @@ class ComtradeExportMap:
             click_js.replace('{plot_div}', 'trade-map-div') + '\n</body>'
         )
         
-        with open(os.path.join('plots', filename), 'w', encoding='utf-8') as f:
+        _p = os.path.join(dir_path(), 'plots')
+        with open(os.path.join(_p, filename), 'w', encoding='utf-8') as f:
             f.write(html_string)
         
         print(f"Interactive trade map saved as '{filename}'")
