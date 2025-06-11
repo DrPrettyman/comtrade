@@ -394,22 +394,15 @@ class ComtradeExportMap:
         
         # Generate the click handler JavaScript
         click_js = self._create_click_handlers()
-        
-        # Save the figure
+        click_js_clean = click_js.replace('{plot_div}', 'trade-map-div')
+
+        # Use Plotly's built-in mechanism for adding scripts
         html_string = self.fig.to_html(
             include_plotlyjs=include_plotlyjs,
-            div_id="trade-map-div"
+            div_id="trade-map-div",
+            post_script=click_js_clean  # This is the proper way to add custom JS
         )
-        
-        # Insert the click handler JavaScript
-        html_string = html_string.replace(
-            'div_id="trade-map-div"',
-            'div_id="trade-map-div"'
-        ).replace(
-            '</body>',
-            click_js.replace('{plot_div}', 'trade-map-div') + '\n</body>'
-        )
-        
+
         _p = os.path.join(dir_path(), 'plots')
         with open(os.path.join(_p, filename), 'w', encoding='utf-8') as f:
             f.write(html_string)
