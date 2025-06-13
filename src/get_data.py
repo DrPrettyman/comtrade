@@ -6,81 +6,36 @@ import pandas as pd
 import numpy as np
 import re
 
-def dir_path() -> str:
-    # Gets the directory where this function is called from
-    frame = inspect.currentframe()
-    filename = frame.f_code.co_filename
-    return os.path.dirname(os.path.abspath(filename))
+from paths import comtrade_data_path, get_api_key
+from load_data import DataGetter
 
 
-def get_secrets() -> dict:
-    secrets_path = os.path.join(
-        os.path.dirname(dir_path()),
-        ".secrets.json"
-    )
-    
-    with open(secrets_path, "r") as _f:
-        s = json.load(_f)
-    
-    return s
 
+data_getter = DataGetter(
+    _dir=comtrade_data_path,
+    api_key=get_api_key()
+)
 
-def set_api_key(key: str = None):
-    if key is None:
-        s = get_secrets()
-        if 'COMTRADE_API_KEY' not in s:
-            raise ValueError('No key provided')
-        key = s['COMTRADE_API_KEY']
-    os.environ['COMTRADE_API_KEY'] = key
     
-
-def data_module_path() -> str:
-    p = dir_path()
-    dp = None
-    while len(p) > 1:
-        if "comtrade_data" in os.listdir(p):
-            dp = os.path.join(p, "comtrade_data")
-            break
-        p = os.path.dirname(p)
-    
-    if dp is None:
-        raise FileNotFoundError
-    
-    return dp
-    
-    
-sys.path.append(data_module_path())
-import fetch_data
-iso2name_map = fetch_data.load_iso2name_map()
-
-
 class ComtradeData:
     def __init__(self, 
-                 period: int, 
                  commodity_code: int | str,
-                 key: str = None):
+                 period: int):
         
-        self._period = period
-        self._code = fetch_data.parse_commodity_code(commodity_code)
-        self._commodity = fetch_data.hscode_map[self._code]
+        self._period: int = period
+        self._code: str = DataGetter.parse_commodity_code(commodity_code)
+        self._commodity: str = DataGetter.commodity_code_desc(commodity_code)
         
-        set_api_key(key)
-        
-        comtrade_df = fetch_data.fetch_data(period, commodity_code)
-        comtrade_df = fetch_data.tidy_annual_export_data(comtrade_df)
-        
-        self._data = comtrade_df
+        self._data: pd.DataFrame = data_getter.load(commodity_code, period)
         self._exports = None
         self._imports = None
         
-    @staticmethod
-        
     @property
-    def period(self):
+    def period(self) -> int:
         return self._period
     
     @property
-    def commodity_code(self):
+    def commodity_code(self) -> str:
         return self._code
     
     @property

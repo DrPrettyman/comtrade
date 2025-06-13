@@ -5,7 +5,11 @@ import inspect
 from millify import millify
 import plotly.graph_objects as go
 
-from get_data import ComtradeData, iso2name_map
+from get_data import ComtradeData
+from codes.get_codes import codes
+from paths import plots_dir
+
+iso2name_map = codes.iso_to_name
 
 
 def dir_path():
@@ -29,7 +33,7 @@ class ComtradeExportMap:
         self._setup_layout_and_controls()
         
     @staticmethod
-    def round_middle_values(arr: list[float]):
+    def _round_middle_values(arr: list[float]):
         if len(arr) < 3:
             return arr
         def _round(x):
@@ -37,7 +41,25 @@ class ComtradeExportMap:
             return int(round(x/p)*p)
         _middle = [_round(x) for x in arr[1:-1]]
         return [arr[0]] + _middle + [arr[-1]]
-        
+    
+    @staticmethod
+    def _create_colorbar(zmax: float) -> dict:
+        _tick_vals = ComtradeExportMap._round_middle_values(np.linspace(0, zmax, 5))
+        _tick_text = ["$"+millify(10**x, precision=0) for x in _tick_vals]
+        _tick_text[0] = "$0"
+        colorbar = dict(
+            x=0.5,
+            y=-0.1,
+            len=0.7,
+            tickmode='array',
+            tickvals=_tick_vals,
+            ticktext=_tick_text,
+            orientation='h',
+            xanchor='center',
+            yanchor='top'
+        )
+        return colorbar
+                
     def _add_choropleths(self):
         export_country_names = [
             iso2name_map.get(country, country) 
@@ -52,11 +74,7 @@ class ComtradeExportMap:
         
         """Add choropleth layers for exports and imports"""
         # Exports choropleth
-        _zmax = self.data.exports['log_value'].max()
-        _tick_vals = self.round_middle_values(np.linspace(0, _zmax, 5))
-        _tick_text = ["$"+millify(10**x, precision=0) for x in _tick_vals]
-        _tick_text[0] = "$0"
-        
+        _zmax = self.data.exports['log_value'].max()        
         self.fig.add_trace(
             go.Choropleth(
                 locations=self.data.exports['country'],
@@ -78,27 +96,12 @@ class ComtradeExportMap:
                 name="Exports",
                 zmin=0,
                 zmax=_zmax,
-                colorbar=dict(
-                    title="Export Value",
-                    x=0.5,
-                    y=-0.2,
-                    len=0.7,
-                    tickmode='array',
-                    tickvals=_tick_vals,
-                    ticktext=_tick_text,
-                    orientation='h',
-                    xanchor='center',
-                    yanchor='bottom'
-                )
+                colorbar=self._create_colorbar(_zmax)
             )
         )
         
         # Imports choropleth
-        _zmax = self.data.imports['log_value'].max()
-        _tick_vals = self.round_middle_values(np.linspace(0, _zmax, 5))
-        _tick_text = ["$"+millify(10**x, precision=0) for x in _tick_vals]
-        _tick_text[0] = "$0"
-        
+        _zmax = self.data.imports['log_value'].max()       
         self.fig.add_trace(
             go.Choropleth(
                 locations=self.data.imports['country'],
@@ -120,18 +123,7 @@ class ComtradeExportMap:
                 name="Imports",
                 zmin=0,
                 zmax=_zmax,
-                colorbar=dict(
-                    title="Import Value",
-                    x=0.5,
-                    y=-0.2,
-                    len=0.7,
-                    tickmode='array',
-                    tickvals=_tick_vals,
-                    ticktext=_tick_text,
-                    orientation='h',
-                    xanchor='center',
-                    yanchor='bottom'
-                )
+                colorbar=self._create_colorbar(_zmax)
             )
         )
     
@@ -313,7 +305,7 @@ class ComtradeExportMap:
                     f"<sub>UN Comtrade data • Click countries to show trade routes</sub>",
                 'x': 0.5,
                 'xanchor': 'center',
-                'font': {'size': 20}
+                'font': {'size': 16}
             },
             
             updatemenus=[
@@ -355,25 +347,11 @@ class ComtradeExportMap:
                 domain=dict(x=[0, 1], y=[0, 0.9])
             ),
             
-            height=700,
-            margin=dict(t=150, b=80, l=50, r=50),
+            # height=700,
+            autosize=True,
+            margin=dict(t=150, b=30, l=10, r=10),
             font=dict(size=12),
         )
-            
-            # annotations=[
-            #     dict(
-            #         text="💡 Line thickness represents trade volume magnitude",
-            #         showarrow=False,
-            #         xref="paper", yref="paper",
-            #         x=0.02, y=0.02,
-            #         xanchor="left", yanchor="bottom",
-            #         font=dict(size=11, color="gray"),
-            #         bgcolor="rgba(255,255,255,0.8)",
-            #         bordercolor="gray",
-            #         borderwidth=1
-            #     )
-            # ]
-        # )
     
     def create_file_name(self):
         return f"comtrade_{self.data._commodity}_{self.data._period}.html"
@@ -395,6 +373,13 @@ class ComtradeExportMap:
         # Generate the click handler JavaScript
         click_js = self._create_click_handlers()
         
+        # Debug: Check for problematic characters
+        # Check if there are any null bytes or other control characters
+        control_chars = [c for c in click_js if ord(c) < 32 and c not in '\n\r\t']
+        print(f"Found {len(control_chars)} control characters")
+        if control_chars:
+            print("First few:", [hex(ord(c)) for c in control_chars[:5]])
+        
         # Save the figure
         html_string = self.fig.to_html(
             include_plotlyjs=include_plotlyjs,
@@ -410,14 +395,14 @@ class ComtradeExportMap:
             click_js.replace('{plot_div}', 'trade-map-div') + '\n</body>'
         )
         
-        _p = os.path.join(dir_path(), 'plots')
-        with open(os.path.join(_p, filename), 'w', encoding='utf-8') as f:
-            f.write(html_string)
+        _fp = os.path.join(plots_dir, filename)
+        with open(_fp, 'w', encoding='utf-8') as _f:
+            _f.write(html_string)
         
         print(f"Interactive trade map saved as '{filename}'")
         print(f"Total traces: {len(self.fig.data)} (2 choropleths + {len(self.fig.data)-2} flow traces)")
         
-        return filename
+        return _fp
 
 # Usage function
 def create_trade_visualization(commodity: str | int, period: int, filename=None):
@@ -435,7 +420,7 @@ def create_trade_visualization(commodity: str | int, period: int, filename=None)
     print("Creating trade visualization...")
     
     # Import the data
-    data = ComtradeData(period=period, commodity_code=commodity)
+    data = ComtradeData(commodity_code=commodity, period=period)
     print("Imported Comtrade data")
     
     # Create the map
