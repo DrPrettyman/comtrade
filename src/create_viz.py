@@ -354,7 +354,8 @@ class ComtradeExportMap:
         )
     
     def create_file_name(self):
-        return f"comtrade_{self.data._commodity}_{self.data._period}.html"
+        _c = self.data._commodity.replace(" ", "-")
+        return f"comtrade_{_c}_{self.data._period}.html"
     
     def save_html(self, filename=None, include_plotlyjs=True):
         """
